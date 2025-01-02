@@ -26,6 +26,16 @@ Assuming you have previously already installed cute-borders:
 The config is located at `%UserProfile%/.cuteborders/config.yaml`.  
 You can open it via the tray icon > Open config
 
+Colors are specified by #hex format or certain special cases:
+- default, the default behavior in Windows
+- transparent, no border
+- accent, use the accent color from Windows
+- rainbow, cycle slowly through a rainbow, adjusted by `rainbow_speed`
+
+If `websocket_port` is set in the config, this option is available:
+- websocket:<NAME> / <FALLBACK>
+It opens one server that listens for colors, and uses the most recent color received per name. If a websocket sends a text message `firefox #c6a0f6`, then borders specified as websocket:firefox will become #c6a0f6. Fallback is used whenever a text message like `firefox none` is received, or if no messages had been received yet.
+
 Example config:
 
 ```yaml

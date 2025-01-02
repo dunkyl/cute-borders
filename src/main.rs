@@ -6,11 +6,15 @@ use config::Config;
 use config::RuleMatch;
 use logger::Logger;
 use rainbow::Rainbow;
+use tungstenite::Message::{Text, Close};
+use std::collections::HashMap;
 use std::ffi::c_ulong;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::prelude::OsStringExt;
+use std::sync::LazyLock;
+use std::sync::RwLock;
 use std::time::Duration;
 use tray_icon::menu::Menu;
 use tray_icon::menu::MenuEvent;
@@ -51,11 +55,43 @@ mod logger;
 mod rainbow;
 mod util;
 
+static WS_COLOR_LOCK: LazyLock<RwLock<HashMap<String, String>>> = LazyLock::new(|| RwLock::new(Default::default()));
+
 fn main() {
   if let Err(err) = set_startup(true) {
     Logger::log("[ERROR] Failed to create or update startup task");
     Logger::log(&format!("[DEBUG] {:?}", err));
   }
+  std::thread::spawn(move || {
+    // TODO: config reload
+    let Some(port) = Config::get().websocket_port else { return };
+    let addr = std::net::Ipv4Addr::LOCALHOST;
+    let Ok(server) = std::net::TcpListener::bind((addr, port)) else {
+      Logger::log("Failed to start server");
+      return;
+    };
+    for stream in server.incoming() {
+      let Ok(stream) = stream else { continue };
+      let Ok(mut ws) = tungstenite::accept(stream) else { continue };
+      std::thread::spawn(move || loop {
+        let msg = ws.read();
+        match msg {
+          Ok(Text(s)) => {
+            let re = regex::Regex::new(r"(?<name>\S+) (?<color>none|#[0-9a-fA-F]{6})").unwrap();
+            let Some(c) = re.captures(&s) else { continue };
+            let mut ws_colors = WS_COLOR_LOCK.write().unwrap();
+            if &c["color"] == "none" {
+              ws_colors.remove(&c["name"]);
+            } else {
+              ws_colors.insert(c["name"].into(), c["color"].into());
+            }
+          }
+          Err(_) | Ok(Close(_)) => return,
+          Ok(_) => (),
+        }
+      });
+    }
+  });
 
   // I will just fucking update everything every 100ms
   // I might want to do this properly buuuuut I dont even use this myself.
@@ -228,6 +264,17 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
   1
 }
 
+fn resolve_rule_color(text: &str) -> u32 {
+  let re = regex::Regex::new(r"websocket:(?<name>\S+)\s*/\s*(?<fallback>default|transparent|accent|rainbow|#[0-9a-fA-F]{6})").unwrap();
+  if let Some(c) = re.captures(text) {
+    let ws_colors = WS_COLOR_LOCK.read().unwrap();
+    let color = ws_colors.get(&c["name"]).map(|s| s.as_str()).unwrap_or(&c["fallback"]);
+    hex_to_colorref(color)
+  } else {
+    hex_to_colorref(text)
+  }
+}
+
 fn get_colors_for_window(_hwnd: HWND, title: String, class: String, reset: bool) -> (u32, u32) {
   if reset {
     return (DWMWA_COLOR_DEFAULT, DWMWA_COLOR_DEFAULT);
@@ -240,14 +287,14 @@ fn get_colors_for_window(_hwnd: HWND, title: String, class: String, reset: bool)
   for rule in config.window_rules.iter() {
     match rule.rule_match {
       RuleMatch::Global => {
-        color_active = hex_to_colorref(&rule.active_border_color);
-        color_inactive = hex_to_colorref(&rule.inactive_border_color);
+        color_active = resolve_rule_color(&rule.active_border_color);
+        color_inactive = resolve_rule_color(&rule.inactive_border_color);
       }
       RuleMatch::Title => {
         if let Some(contains_str) = &rule.contains {
           if title.to_lowercase().contains(&contains_str.to_lowercase()) {
-            color_active = hex_to_colorref(&rule.active_border_color);
-            color_inactive = hex_to_colorref(&rule.inactive_border_color);
+            color_active = resolve_rule_color(&rule.active_border_color);
+            color_inactive = resolve_rule_color(&rule.inactive_border_color);
             break;
           }
         } else {
@@ -257,8 +304,8 @@ fn get_colors_for_window(_hwnd: HWND, title: String, class: String, reset: bool)
       RuleMatch::Class => {
         if let Some(contains_str) = &rule.contains {
           if class.to_lowercase().contains(&contains_str.to_lowercase()) {
-            color_active = hex_to_colorref(&rule.active_border_color);
-            color_inactive = hex_to_colorref(&rule.inactive_border_color);
+            color_active = resolve_rule_color(&rule.active_border_color);
+            color_inactive = resolve_rule_color(&rule.inactive_border_color);
             break;
           }
         } else {
