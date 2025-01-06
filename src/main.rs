@@ -49,6 +49,7 @@ const DWMWA_BORDER_COLOR: u32 = 34;
 const DWMWA_COLOR_DEFAULT: u32 = 0xFFFFFFFF;
 const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
 const COLOR_INVALID: u32 = 0x000000FF;
+const DWMWA_CAPTION_COLOR : u32 = 35;
 const DWMWA_SYSTEMBACKDROP_TYPE: u32 = 38;
 
 // https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
@@ -356,6 +357,12 @@ fn apply_colors(reset: bool) {
           DWMWA_SYSTEMBACKDROP_TYPE, 
           &bg as *const _ as *const c_void, 
           std::mem::size_of::<c_int>() as u32
+        );
+        DwmSetWindowAttribute( // remove title bar bg
+          hwnd, 
+          DWMWA_CAPTION_COLOR, 
+          &DWMWA_COLOR_NONE as *const _ as *const c_void, 
+          std::mem::size_of::<c_ulong>() as u32
         );
       }
 
