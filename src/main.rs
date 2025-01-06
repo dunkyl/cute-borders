@@ -49,6 +49,14 @@ const DWMWA_BORDER_COLOR: u32 = 34;
 const DWMWA_COLOR_DEFAULT: u32 = 0xFFFFFFFF;
 const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
 const COLOR_INVALID: u32 = 0x000000FF;
+const DWMWA_SYSTEMBACKDROP_TYPE: u32 = 38;
+
+// https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type
+const DWMSBT_AUTO: u32 = 0;
+const DWMSBT_NONE: u32 = 1;
+const DWMSBT_MAINWINDOW: u32 = 2;
+const DWMSBT_TRANSIENTWINDOW: u32 = 3;
+const DWMSBT_TABBEDWINDOW: u32 = 4;
 
 mod config;
 mod logger;
@@ -275,26 +283,33 @@ fn resolve_rule_color(text: &str) -> u32 {
   }
 }
 
-fn get_colors_for_window(_hwnd: HWND, title: String, class: String, reset: bool) -> (u32, u32) {
+fn get_colors_for_window(_hwnd: HWND, title: String, class: String, reset: bool) -> (u32, u32, Option<u32>) {
   if reset {
-    return (DWMWA_COLOR_DEFAULT, DWMWA_COLOR_DEFAULT);
+    return (DWMWA_COLOR_DEFAULT, DWMWA_COLOR_DEFAULT, None);
   }
 
   let config = Config::get();
   let mut color_active = COLOR_INVALID;
   let mut color_inactive = COLOR_INVALID;
+  let mut bg = None;
 
   for rule in config.window_rules.iter() {
     match rule.rule_match {
       RuleMatch::Global => {
         color_active = resolve_rule_color(&rule.active_border_color);
         color_inactive = resolve_rule_color(&rule.inactive_border_color);
+        if rule.backdrop.as_deref() == Some("acrylic") {
+            bg = Some(DWMSBT_TRANSIENTWINDOW);
+        }
       }
       RuleMatch::Title => {
         if let Some(contains_str) = &rule.contains {
           if title.to_lowercase().contains(&contains_str.to_lowercase()) {
             color_active = resolve_rule_color(&rule.active_border_color);
             color_inactive = resolve_rule_color(&rule.inactive_border_color);
+            if rule.backdrop.as_deref() == Some("acrylic") {
+              bg = Some(DWMSBT_TRANSIENTWINDOW);
+          }
             break;
           }
         } else {
@@ -306,6 +321,9 @@ fn get_colors_for_window(_hwnd: HWND, title: String, class: String, reset: bool)
           if class.to_lowercase().contains(&contains_str.to_lowercase()) {
             color_active = resolve_rule_color(&rule.active_border_color);
             color_inactive = resolve_rule_color(&rule.inactive_border_color);
+            if rule.backdrop.as_deref() == Some("acrylic") {
+              bg = Some(DWMSBT_TRANSIENTWINDOW);
+          }
             break;
           }
         } else {
@@ -315,7 +333,7 @@ fn get_colors_for_window(_hwnd: HWND, title: String, class: String, reset: bool)
     }
   }
 
-  (color_active, color_inactive)
+  (color_active, color_inactive, bg)
 }
 
 fn apply_colors(reset: bool) {
@@ -328,9 +346,18 @@ fn apply_colors(reset: bool) {
   }
 
   for (hwnd, title, class) in visible_windows {
-    let (color_active, color_inactive) = get_colors_for_window(hwnd, title, class, reset);
+    let (color_active, color_inactive, bg) = get_colors_for_window(hwnd, title, class, reset);
     unsafe {
       let active = GetForegroundWindow();
+
+      if let Some(bg) = bg {
+        DwmSetWindowAttribute(
+          hwnd, 
+          DWMWA_SYSTEMBACKDROP_TYPE, 
+          &bg as *const _ as *const c_void, 
+          std::mem::size_of::<c_int>() as u32
+        );
+      }
 
       if active == hwnd {
         DwmSetWindowAttribute(

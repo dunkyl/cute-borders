@@ -36,6 +36,9 @@ If `websocket_port` is set in the config, this option is available:
 - websocket:<NAME> / <FALLBACK>
 It opens one server that listens for colors, and uses the most recent color received per name. If a websocket sends a text message `firefox #c6a0f6`, then borders specified as websocket:firefox will become #c6a0f6. Fallback is used whenever a text message like `firefox none` is received, or if no messages had been received yet.
 
+Window rules may specify a `backdrop` on Windows 11 22621 and later.
+- acrylic, apply a transparent blurred effect to the windo background.
+
 Example config:
 
 ```yaml

@@ -26,6 +26,7 @@ pub struct WindowRule {
   pub contains: Option<String>,
   pub active_border_color: String,
   pub inactive_border_color: String,
+  pub backdrop: Option<String>
 }
 
 // Some are Options because i cant be bothered handling config upgrades
