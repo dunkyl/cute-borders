@@ -67,6 +67,16 @@ mod util;
 static WS_COLOR_LOCK: LazyLock<RwLock<HashMap<String, String>>> = LazyLock::new(|| RwLock::new(Default::default()));
 
 fn main() {
+
+  std::panic::set_hook(Box::new(|info| {
+    Logger::log(&format!(
+      "Panic!\n{:#?}\n{:#?}\n{:#?}",
+      info.location(),
+      info.payload().downcast_ref::<&str>(),
+      info.payload().downcast_ref::<String>(),
+    ));
+  }));
+
   if let Err(err) = set_startup(true) {
     Logger::log("[ERROR] Failed to create or update startup task");
     Logger::log(&format!("[DEBUG] {:?}", err));
@@ -80,6 +90,7 @@ fn main() {
       return;
     };
     for stream in server.incoming() {
+      Logger::log(&format!("WS: {:#?}", stream));
       let Ok(stream) = stream else { continue };
       let Ok(mut ws) = tungstenite::accept(stream) else { continue };
       std::thread::spawn(move || loop {
@@ -141,7 +152,8 @@ fn main() {
       let tray_menu = match tray_menu_builder {
         Ok(tray_menu) => tray_menu,
         Err(err) => {
-          Logger::log("[ERROR] Failed to build tray icon");
+          // TODO: one of two possible falures at startup?
+          Logger::log("[ERROR] Failed to build tray ~~icon~~ *menu*");
           Logger::log(&format!("[DEBUG] {:?}", err));
           std::process::exit(1);
         }
@@ -165,6 +177,7 @@ fn main() {
       tray_icon = match tray_icon_builder.build() {
         Ok(tray_icon) => tray_icon,
         Err(err) => {
+          // TODO: one of two possible falures at startup?
           Logger::log("[ERROR] Failed to build tray icon");
           Logger::log(&format!("[DEBUG] {:?}", err));
           std::process::exit(1);
@@ -358,6 +371,7 @@ fn apply_colors(reset: bool) {
           &bg as *const _ as *const c_void, 
           std::mem::size_of::<c_int>() as u32
         );
+        // TODO: if DWMWA_ALLOW_NCPAINT ...
         DwmSetWindowAttribute( // remove title bar bg
           hwnd, 
           DWMWA_CAPTION_COLOR, 

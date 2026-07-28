@@ -27,6 +27,7 @@ use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 use crate::rainbow::Rainbow;
 use crate::{logger::Logger, COLOR_INVALID, DWMWA_COLOR_DEFAULT, DWMWA_COLOR_NONE};
 
+// TODO: move to appdata
 pub fn get_file_path(filename: &str) -> String {
   let user_profile_path = match std::env::var("USERPROFILE") {
     Ok(user_profile_path) => user_profile_path,
@@ -228,6 +229,9 @@ pub fn set_startup(enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
 
   let ts = TaskScheduler::new()?;
   let com = ts.get_com();
+
+
+  // TODO task manager-able startup entry
   let sb = ScheduleBuilder::new(&com).unwrap();
 
   let mut settings = Settings::new();

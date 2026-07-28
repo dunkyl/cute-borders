@@ -19,6 +19,7 @@ pub enum RuleMatch {
   Class,
 }
 
+// TODO: combo rules (distin)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WindowRule {
   #[serde(rename = "match")]
